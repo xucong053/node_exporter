@@ -162,6 +162,14 @@ func (h *handler) pushRunner(interval time.Duration) {
 
 func main() {
 	var (
+		disablePush = kingpin.Flag(
+			"push.disable-default",
+			"Push metrics to disabled by default.",
+		).Default("false").Bool()
+		disablePull = kingpin.Flag(
+			"pull.disable-default",
+			"Pull metrics to disabled by default.",
+		).Default("false").Bool()
 		listenAddress = kingpin.Flag(
 			"web.listen-address",
 			"Address on which to expose metrics and web interface.",
@@ -212,25 +220,37 @@ func main() {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		level.Warn(logger).Log("msg", "Node Exporter is running as root user. This exporter is designed to run as unpriviledged user, root is not required.")
 	}
-
+	errCh := make(chan struct{})
 	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, *pushgateway, "node_exporter")
-	http.Handle(*metricsPath, h)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`<html>
+	if !*disablePush {
+		// start push metrics to pushgateway
+		level.Info(logger).Log("msg", "pushing metrics to pushgateway", "address", *pushgateway, "interval", *interval)
+		go func() {
+			h.pushRunner(*interval)
+			close(errCh)
+		}()
+	}
+	if !*disablePull {
+		level.Info(logger).Log("msg", "Listening on", "address", *listenAddress)
+		go func() {
+			http.Handle(*metricsPath, h)
+			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(`<html>
 			<head><title>Node Exporter</title></head>
 			<body>
 			<h1>Node Exporter</h1>
 			<p><a href="` + *metricsPath + `">Metrics</a></p>
 			</body>
 			</html>`))
-	})
-	// start push metrics to pushgateway
-	level.Info(logger).Log("msg", "pushing metrics to pushgateway", "address", *pushgateway, "interval", *interval)
-	go h.pushRunner(*interval)
-	level.Info(logger).Log("msg", "Listening on", "address", *listenAddress)
-	server := &http.Server{Addr: *listenAddress}
-	if err := web.ListenAndServe(server, *configFile, logger); err != nil {
-		level.Error(logger).Log("err", err)
-		os.Exit(1)
+			})
+
+			server := &http.Server{Addr: *listenAddress}
+			if err := web.ListenAndServe(server, *configFile, logger); err != nil {
+				level.Error(logger).Log("err", err)
+				close(errCh)
+			}
+		}()
 	}
+	<-errCh
+	os.Exit(1)
 }
