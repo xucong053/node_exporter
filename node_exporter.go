@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/user"
 	"sort"
+	"time"
 
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
@@ -30,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/node_exporter/collector"
@@ -47,14 +49,16 @@ type handler struct {
 	includeExporterMetrics  bool
 	maxRequests             int
 	logger                  log.Logger
+	pusher                  *push.Pusher
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger log.Logger) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger log.Logger, pushURL, job string) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
 		includeExporterMetrics:  includeExporterMetrics,
 		maxRequests:             maxRequests,
 		logger:                  logger,
+		pusher:                  push.New(pushURL, job),
 	}
 	if h.includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
@@ -121,6 +125,7 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 	if err := r.Register(nc); err != nil {
 		return nil, fmt.Errorf("couldn't register node collector: %s", err)
 	}
+	h.pusher.Gatherer(prometheus.Gatherers{h.exporterMetricsRegistry, r})
 	handler := promhttp.HandlerFor(
 		prometheus.Gatherers{h.exporterMetricsRegistry, r},
 		promhttp.HandlerOpts{
@@ -140,12 +145,27 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 	return handler, nil
 }
 
+func (h *handler) pushRunner(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer func() {
+		ticker.Stop()
+		h.pushRunner(interval)
+	}()
+	for {
+		<-ticker.C
+		err := h.pusher.Add()
+		if err != nil {
+			level.Warn(h.logger).Log("msg", "push metrics to pushgateway error:", "err", err)
+		}
+	}
+}
+
 func main() {
 	var (
 		listenAddress = kingpin.Flag(
 			"web.listen-address",
 			"Address on which to expose metrics and web interface.",
-		).Default(":9100").String()
+		).Default(":9101").String()
 		metricsPath = kingpin.Flag(
 			"web.telemetry-path",
 			"Path under which to expose metrics.",
@@ -166,6 +186,14 @@ func main() {
 			"web.config",
 			"[EXPERIMENTAL] Path to config yaml file that can enable TLS or authentication.",
 		).Default("").String()
+		pushgateway = kingpin.Flag(
+			"pushgateway.listen-address",
+			"Address on which to push metrics.",
+		).Default(":9091").String()
+		interval = kingpin.Flag(
+			"push.interval",
+			"Interval for pushing metrics to pushgateway",
+		).Default("5s").Duration()
 	)
 
 	promlogConfig := &promlog.Config{}
@@ -185,7 +213,8 @@ func main() {
 		level.Warn(logger).Log("msg", "Node Exporter is running as root user. This exporter is designed to run as unpriviledged user, root is not required.")
 	}
 
-	http.Handle(*metricsPath, newHandler(!*disableExporterMetrics, *maxRequests, logger))
+	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, *pushgateway, "node_exporter")
+	http.Handle(*metricsPath, h)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
 			<head><title>Node Exporter</title></head>
@@ -195,7 +224,9 @@ func main() {
 			</body>
 			</html>`))
 	})
-
+	// start push metrics to pushgateway
+	level.Info(logger).Log("msg", "pushing metrics to pushgateway", "address", *pushgateway, "interval", *interval)
+	go h.pushRunner(*interval)
 	level.Info(logger).Log("msg", "Listening on", "address", *listenAddress)
 	server := &http.Server{Addr: *listenAddress}
 	if err := web.ListenAndServe(server, *configFile, logger); err != nil {
