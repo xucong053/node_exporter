@@ -20,15 +20,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Release node_exporter cli binaries
-        uses: crazy-max/ghaction-xgo@v1
+        uses: wangyoucao577/go-release-action@v1.22
         with:
-          xgo_version: latest
-          go_version: ${{ matrix.go_version }}
-          dest: build
-          prefix: myapp
-          targets: windows/amd64,linux/arm64,linux/amd64,darwin/arm64,darwin/amd64
-          v: true
-          x: false
-          race: false
-          ldflags: -s -w
-          buildmode: default
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          project_path: "./" # go build ./node_exporter.go
+          binary_name: "node_exporter"
+          ldflags: "-s -w"
+          extra_files: LICENSE README.md CHANGELOG.md
