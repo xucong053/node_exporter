@@ -203,7 +203,6 @@ func main() {
 			"Interval for pushing metrics to pushgateway",
 		).Default("5s").Duration()
 	)
-
 	promlogConfig := &promlog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	kingpin.Version(version.Print("node_exporter"))
@@ -211,7 +210,9 @@ func main() {
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 	logger := promlog.New(promlogConfig)
-
+	if *disablePull && *disablePush {
+		os.Exit(0)
+	}
 	if *disableDefaultCollectors {
 		collector.DisableDefaultCollectors()
 	}
