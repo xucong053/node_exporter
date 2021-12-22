@@ -52,13 +52,13 @@ type handler struct {
 	pusher                  *push.Pusher
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger log.Logger, pushURL, job string) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger log.Logger, pushURL, job, instance string) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
 		includeExporterMetrics:  includeExporterMetrics,
 		maxRequests:             maxRequests,
 		logger:                  logger,
-		pusher:                  push.New(pushURL, job),
+		pusher:                  push.New(pushURL, job).Grouping("instance", instance),
 	}
 	if h.includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
@@ -206,6 +206,10 @@ func main() {
 			"job",
 			"Job name",
 		).Default("node_exporter").String()
+		instance = kingpin.Flag(
+			"instance",
+			"Instance name",
+		).Default("instance1").String()
 	)
 	promlogConfig := &promlog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
@@ -226,7 +230,7 @@ func main() {
 		level.Warn(logger).Log("msg", "Node Exporter is running as root user. This exporter is designed to run as unpriviledged user, root is not required.")
 	}
 	errCh := make(chan struct{})
-	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, *pushgateway, *job)
+	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, *pushgateway, *job, *instance)
 	if !*disablePush {
 		// start push metrics to pushgateway
 		level.Info(logger).Log("msg", "pushing metrics to pushgateway", "address", *pushgateway, "interval", *interval)
