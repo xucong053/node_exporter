@@ -202,6 +202,10 @@ func main() {
 			"push.interval",
 			"Interval for pushing metrics to pushgateway",
 		).Default("5s").Duration()
+		job = kingpin.Flag(
+			"job",
+			"Job name",
+		).Default("node_exporter").String()
 	)
 	promlogConfig := &promlog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
@@ -222,7 +226,7 @@ func main() {
 		level.Warn(logger).Log("msg", "Node Exporter is running as root user. This exporter is designed to run as unpriviledged user, root is not required.")
 	}
 	errCh := make(chan struct{})
-	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, *pushgateway, "node_exporter")
+	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, *pushgateway, *job)
 	if !*disablePush {
 		// start push metrics to pushgateway
 		level.Info(logger).Log("msg", "pushing metrics to pushgateway", "address", *pushgateway, "interval", *interval)
