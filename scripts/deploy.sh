@@ -43,20 +43,22 @@ case $OS_TYPE in
     Darwin)
         UUID=$(get_mac_uuid)
         if [[ $(uname -m) == "arm64" ]];then
-            MONITOR_AGENT_DARWIN_DOWNLOAD_URL=${1:-"https://github.com/xucong053/node_exporter/releases/download/v1.3.2-alpha/node_exporter-v1.3.2-alpha-darwin-arm64.tar.gz"}
+            MONITOR_AGENT_DARWIN_DOWNLOAD_URL=${1:-"https://gtfstorage.byteoversea.com/api/v1/mostRecent/node_exporter-darwin-arm64"}
         else
-            MONITOR_AGENT_DARWIN_DOWNLOAD_URL=${1:-"https://gtfstorage.byteoversea.com/mostRecent/node_exporter-darwin-amd64"}
+            MONITOR_AGENT_DARWIN_DOWNLOAD_URL=${1:-"https://gtfstorage.byteoversea.com/api/v1/mostRecent/node_exporter-darwin-amd64"}
         fi
         ;;
     Linux)
         UUID=$(get_linux_uuid)
         if [[ $(uname -m) == "arm64" ]];then
-            MONITOR_AGENT_LINUX_DOWNLOAD_URL=${1:-"https://github.com/xucong053/node_exporter/releases/download/v1.3.2-alpha/node_exporter-v1.3.2-alpha-linux-arm64.tar.gz"}
+            MONITOR_AGENT_LINUX_DOWNLOAD_URL=${1:-"https://gtfstorage.byteoversea.com/api/v1/mostRecent/node_exporter-linux-arm64"}
         else
-            MONITOR_AGENT_LINUX_DOWNLOAD_URL=${1:-"https://github.com/xucong053/node_exporter/releases/download/v1.3.2-alpha/node_exporter-v1.3.2-alpha-linux-amd64.tar.gz"}
+            MONITOR_AGENT_LINUX_DOWNLOAD_URL=${1:-"https://gtfstorage.byteoversea.com/api/v1/mostRecent/node_exporter-linux-amd64"}
         fi
         ;;
 esac
+
+UUID=$(echo $UUID)
 
 case $OS_TYPE in
     Darwin)
@@ -69,22 +71,22 @@ case $OS_TYPE in
         ;;
 esac
 
-MONITOR_AGENT_BIN=./node_exporter
-MONITOR_AGENT_GZ=./node_exporter-*.tar.gz
+MONITOR_AGENT_BIN=node_exporter
 
-if [ -f "$MONITOR_AGENT_DOWNLOAD_URL" ]; then
-    echo "copy task worker to space"
-    echo "$ cp $MONITOR_AGENT_DOWNLOAD_URL $MONITOR_AGENT_GZ"
-    cp "$MONITOR_AGENT_DOWNLOAD_URL" "$MONITOR_AGENT_GZ"
+if [ -f $MONITOR_AGENT_BIN ]; then
+    echo "monitor agent already exists, waiting to be executed"
 else
-    echo "download task worker $MONITOR_AGENT_DOWNLOAD_URL"
-    wget "$MONITOR_AGENT_DOWNLOAD_URL"
+    if [ -f "$MONITOR_AGENT_DOWNLOAD_URL" ]; then
+        echo "copy monitor agent to space"
+        echo "$ cp $MONITOR_AGENT_DOWNLOAD_URL $MONITOR_AGENT_BIN"
+        cp "$MONITOR_AGENT_DOWNLOAD_URL" "$MONITOR_AGENT_BIN"
+    else
+        echo "download monitor agent $MONITOR_AGENT_DOWNLOAD_URL"
+        wget "$MONITOR_AGENT_DOWNLOAD_URL" -O "$MONITOR_AGENT_BIN"
+    fi
 fi
 
-tar -zxvf $MONITOR_AGENT_GZ
+chmod 777 "$MONITOR_AGENT_BIN"
 
-echo "$ chmod +x $MONITOR_AGENT_BIN"
-chmod +x "$MONITOR_AGENT_BIN"
-echo
-
-./node_exporter --pushgateway.listen-address=$PUSHGATEWAY --instance=$LOCAL_IP-$OS_TYPE-$UUID
+echo "./node_exporter --pushgateway.listen-address=$PUSHGATEWAY --instance=$OS_TYPE--$LOCAL_IP--$UUID"
+./node_exporter --pushgateway.listen-address=$PUSHGATEWAY --instance=$OS_TYPE--$LOCAL_IP--$UUID
