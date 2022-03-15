@@ -155,7 +155,7 @@ func (h *handler) pushRunner(interval time.Duration) {
 		<-ticker.C
 		err := h.pusher.Add()
 		if err != nil {
-			level.Warn(h.logger).Log("msg", "push metrics to pushgateway error:", "err", err)
+			level.Info(h.logger).Log("msg", "push metrics to pushgateway error:", "err", err)
 		}
 	}
 }
