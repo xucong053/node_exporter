@@ -120,6 +120,7 @@ powersupplyclass | Exposes Power Supply statistics from `/sys/class/power_supply
 pressure | Exposes pressure stall statistics from `/proc/pressure/`. | Linux (kernel 4.20+ and/or [CONFIG\_PSI](https://www.kernel.org/doc/html/latest/accounting/psi.html))
 rapl | Exposes various statistics from `/sys/class/powercap`. | Linux
 schedstat | Exposes task scheduler statistics from `/proc/schedstat`. | Linux
+selinux | Exposes SELinux statistics. | Linux
 sockstat | Exposes various statistics from `/proc/net/sockstat`. | Linux
 softnet | Exposes statistics from `/proc/net/softnet_stat`. | Linux
 stat | Exposes various statistics from `/proc/stat`. This includes boot time, forks and interrupts. | Linux
@@ -193,6 +194,7 @@ from debugfs. And example usage of this would be
 Name     | Description | OS
 ---------|-------------|----
 buddyinfo | Exposes statistics of memory fragments as reported by /proc/buddyinfo. | Linux
+cgroups | A summary of the number of active and enabled cgroups | Linux
 devstat | Exposes device statistics | Dragonfly, FreeBSD
 drbd | Exposes Distributed Replicated Block Device statistics (to version 8.4) | Linux
 ethtool | Exposes network interface information and network driver statistics equivalent to `ethtool`, `ethtool -S`, and `ethtool -i`. | Linux
@@ -208,6 +210,7 @@ perf | Exposes perf based metrics (Warning: Metrics are dependent on kernel conf
 processes | Exposes aggregate process statistics from `/proc`. | Linux
 qdisc | Exposes [queuing discipline](https://en.wikipedia.org/wiki/Network_scheduler#Linux_kernel) statistics | Linux
 runit | Exposes service status from [runit](http://smarden.org/runit/). | _any_
+slabinfo | Exposes slab statistics from `/proc/slabinfo`. Note that permission of `/proc/slabinfo` is usually 0400, so set it appropriately. | Linux
 supervisord | Exposes service status from [supervisord](http://supervisord.org/). | _any_
 systemd | Exposes service and system status from [systemd](http://www.freedesktop.org/wiki/Software/systemd/). | Linux
 tcpstat | Exposes TCP connection status information from `/proc/net/tcp` and `/proc/net/tcp6`. (Warning: the current version has potential performance issues in high load situations.) | Linux
@@ -266,7 +269,7 @@ Building:
 
     git clone https://github.com/prometheus/node_exporter.git
     cd node_exporter
-    make
+    make build
     ./node_exporter <flags>
 
 To see all available configuration flags:
